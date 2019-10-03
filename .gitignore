@@ -1,0 +1,8 @@
+/.idea/*
+/nbproject/*
+/vendor/*
+
+/products_*
+/report_*
+/App/Dao/*.log
+/Service/*.log
