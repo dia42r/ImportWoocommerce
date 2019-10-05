@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Client;
 
-use App\Config\AppConfig;
 use Automattic\WooCommerce\Client;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
@@ -42,13 +41,15 @@ class ProductClient
         }
 
         $this->client = new Client(
-            AppConfig::END_POINT,
-            AppConfig::CLIENT_KEY,
-            AppConfig::CLIENT_SECRET,
+            $_ENV['END_POINT'],
+            $_ENV['CLIENT_KEY'],
+            $_ENV['CLIENT_SECRET'],
             [
                 'wp_api' => true,
                 'version' => 'wc/v3',
-                'query_string_auth' => true // Force Basic Authentication as query string true and using under HTTPS
+                'query_string_auth' => true, // Force Basic Authentication as query string true and using under HTTPS
+                'verify_ssl' => false,
+                'timeout' => 5000
             ]
         );
 

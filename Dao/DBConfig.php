@@ -15,10 +15,5 @@ namespace App\Dao;
  */
 class DBConfig
 {
-
-    const DB_DSN = "mysql:dbname=acces_sit;host=localhost";
-    const DB_USER = "root";
-    const DB_PASS = "";
-
     const TB_PROCESS = "`acces_sit`.`process`";
 }

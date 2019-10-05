@@ -34,7 +34,7 @@ class DbConnexion
     public static function getInstance(  ) {
 
         if(!self::$objInstance){
-            self::$objInstance = new PDO(DBConfig::DB_DSN, DBConfig::DB_USER, DBConfig::DB_PASS);
+            self::$objInstance = new PDO($_ENV['DB_DSN'],$_ENV['DB_USER'], $_ENV['DB_PASS']);
             self::$objInstance->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             // self::$objInstance->setAttribute(\PDO::MYSQL_ATTR_INIT_COMMAND, "SET NAMES utf8");
         }

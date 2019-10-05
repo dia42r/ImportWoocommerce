@@ -118,26 +118,24 @@ class ImportService
      */
     public function getRemoteProductIds(): array
     {
-        $products = $this->productClient->getAllProducts();
-
-        $this->logger->debug('Recupération des produits de la base distante ...: ', $products);
 
         $remoteProducts = [];
+        try {
+            $products = $this->productClient->getAllProducts();
+            $this->logger->debug('Recupération des produits de la base distante ...: ', $products);
 
-        foreach ($products as $product) {
-            // key = idwoocommerce value = code_eds
-            $remoteProducts[$product->id] = $product->sku;
+            foreach ($products as $product) {
+                // key = idwoocommerce value = code_eds
+                $remoteProducts[$product->id] = $product->sku;
+            }
 
+            $this->logger->debug('Recupération des produits de la base distante ...: ',
+                ['count:' => count($remoteProducts), 'liste:' => $remoteProducts]);
+        } catch (HttpClientException $e) {
+            $this->logger->error("", [$e->getMessage()]);
+            print_r($e->getMessage());
         }
 
-        $this->logger->debug('Recupération des produits de la base distante ...: ',
-            ['count:' => count($remoteProducts), 'liste:' => $remoteProducts]);
-
-//
-//        $remoteProducts = array_filter($remoteProducts, function ($value) {
-//            return !empty($value);
-//
-//        });
         return $remoteProducts;
     }
 

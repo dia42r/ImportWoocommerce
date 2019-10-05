@@ -6,3 +6,4 @@
 /report_*
 /App/Dao/*.log
 /Service/*.log
+/Config/.env
