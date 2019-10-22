@@ -65,6 +65,15 @@ class ProductClient
     }
 
     /**
+     * @param int $id
+     * @return array
+     */
+    public function get(array $params)
+    {
+        return $this->client->get($this->endpoints, $params);
+    }
+
+    /**
      * @param array $datas
      * @return array
      */
@@ -105,18 +114,23 @@ class ProductClient
     /**
      * @return array
      */
-    public function getAllProducts()
+    public function getAllRemoteProducts()
     {
         $this->client->get($this->endpoints);
         $response = $this->client->http->getResponse();
         $nbrePage = $response->getHeaders()['X-WP-TotalPages'];
 
         $result = [];
-        for ($i = 1; $i <= $nbrePage; ++$i) {
+        $remoteProducts = [];
+        for ($i = 1; $i <= $nbrePage ; ++$i) {
             $product = $this->client->get($this->endpoints, array('page' => $i));
             $result = array_merge($result, $product);
         }
 
-        return $result;
+        foreach ($result as $product) {
+            $remoteProducts[$product->id] = $product->sku;
+        }
+
+        return $remoteProducts;
     }
 }

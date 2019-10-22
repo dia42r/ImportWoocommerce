@@ -41,8 +41,6 @@ class AppConfig
         4 => "Type de mobilier ", // Interieur / Exterieur
     ];
 
-    const IMAGES_LOCATION = "https://preprod.acces-sit.com/wp-content/uploads/img/";
-
     const DEFAULT_CATEGORY = 120;
 
 }

@@ -4,13 +4,14 @@ declare(strict_types=1);
 namespace App\Service;
 
 
+use App\Cache\RemoteProductsCache;
 use App\Client\ProductClient;
 use App\Dao\ProcessDao;
 use App\Dao\ProductDao;
 use App\DataFormatter\ProductFormatter;
 use Automattic\WooCommerce\HttpClient\HttpClientException;
-use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
+use Monolog\Logger;
 
 /**
  * Class ImportService
@@ -53,56 +54,98 @@ class ImportService
 
         $this->logger = new Logger(__FILE__);
 
-        $this->logger->pushHandler(new StreamHandler(__FILE__ . time(). '.log', Logger::DEBUG));
+        $this->logger->pushHandler(new StreamHandler(__FILE__ . time() . '.log', Logger::DEBUG));
     }
 
     public function process()
     {
-
-        $localProductIds = $this->productDao->getLocalProductsIds();
+        /**
+         * 1. Recuperer la derniere date d'execution
+         * 2. Recuperer tous les produits qui ont été modifier apres cette date
+         * 3. Si aucun produit modifier ==> fin du prcess sinon etape 4.
+         * 4. Pour chaque produit recuperer
+         *      1. Verifier si il est present actuellement sur le site
+         *          Si Oui c'est une mise a jour
+         *          Si Non c'est une nouveau produit a creer
+         *          Bloucler sur la liste des produits et construire un tabelau avec la liste des produits à créer
+         *          et à modifier.
+         *
+         *          productToUpd[]
+         *          productToCreate[]
+         * 5. Poster des produits a creer et a mettre a jour
+         * 6. Produit depublier de la base
+         *      Recupperer tous les produits actuellement sur le site
+         *      Recuprer tous les produits publier de la base
+         *      Les produits a supprimer sont ceux qui ne sont pas dans la liste des produits a publier de la base
+         *      productToDelete[] = array_diff(remoteIds, localIds)
+         * 7. Poster les produits a supprimer
+         *
+         */
 
         $lastExecutionDate = $this->processDao->getLastExecutionDate();
 
-        $this->logger->debug("Récuperation des produit de la base local ....: ",
-            ['count:' => count($localProductIds)]);
+        $modifiedProducts = $this->productDao->getLastUpdProduct($lastExecutionDate);
 
-        $remoteProductIds = $this->getRemoteProductIds();
+        if (empty($modifiedProducts)) {
 
-        list($listProductToCreate, $listProductToUpdate, $listProductToDelete) = $this->buildProductList($remoteProductIds, $lastExecutionDate);
+            return " Aucun produit mis a jour depuis la derniere syncronisation ...";
+        }
 
+        $newProduct = [];
+        $productToUpd = [];
 
-        list($resultUpdate, $errorsUpdate) = $this->executeUpdate($listProductToUpdate);
+        foreach ($modifiedProducts as $product) {
+
+            $params = [
+                'sku' => $product->id
+            ];
+
+            $remoteProduct = $this->productClient->get($params);
+
+            if (empty($remoteProduct)) {
+                $product->id = null;
+                $newProduct[] = $product;
+            } else {
+                $product->id = $remoteProduct[0]->id;
+                $productToUpd[] = $product;
+            }
+        }
+
+        list($resultUpdate, $errorsUpdate) = $this->executeUpdate($productToUpd);
         $this->logger->error("Errors : ", ["Execute Update " => $errorsUpdate]);
 
-        list($resultInsert, $errorsInsert) = $this->executeInsert($listProductToCreate);
+        list($resultInsert, $errorsInsert) = $this->executeInsert($newProduct);
         $this->logger->error("Errors : ", ["Execute create " => $errorsInsert]);
 
-        list($resultDelete, $errorsDelete) = $this->executeDelete($listProductToCreate);
-        $this->logger->error("Errors : ", ["Execute Delete " => $errorsDelete]);
+        list($resultDelete, $errorsDeleted, $listProductToDeleted) = $this->executeDelete();
+        $this->logger->error("Errors  : ", ["Execute Delete "=> $errorsDeleted]);
+
+
 
 
         $datas = [
-            'create' => $listProductToCreate,
-            'update' => $listProductToUpdate,
-            'delete' => array_keys($listProductToDelete)
-            ];
-
-
+            'create' => $newProduct,
+            'update' => $productToUpd,
+            'delete' => $listProductToDeleted
+        ];
 
         $callback = function ($res) {
             return $res->sku;
+
         };
 
         $report = [
-                'created' => array_map($callback, $resultInsert),
-                'updated' => array_map($callback, $resultUpdate),
-                'delete' => array_map($callback, $resultDelete),
-                'errorsInsert' => $errorsInsert,
-                'errorsUpdate' => $errorsUpdate,
-                'errorsDelete' => $errorsDelete,
+            'created' => array_map($callback, $resultInsert),
+            'updated' => array_map($callback, $resultUpdate),
+            'deleted' => array_map($callback, $resultDelete),
+            'errorsInsert' => $errorsInsert,
+            'errorsUpdate' => $errorsUpdate,
+            'errorsDelete' => $errorsDeleted
         ];
 
+        print_r($datas);
         print_r($report);
+
 
         $this->createDatasFiles('products', 'json', $datas);
         $this->createDatasFiles('report', 'json', $report);
@@ -111,47 +154,69 @@ class ImportService
 
     }
 
-
-
     /**
+     *
+     * @param $listProductToUpdate
+     * @param array $result
+     * @param array $errors
      * @return array
      */
-    public function getRemoteProductIds(): array
+    private function executeUpdate($listProductToUpdate): array
     {
+        $result = [];
+        $errors = [];
 
-        $remoteProducts = [];
-        try {
-            $products = $this->productClient->getAllProducts();
-            $this->logger->debug('Recupération des produits de la base distante ...: ', $products);
-
-            foreach ($products as $product) {
-                // key = idwoocommerce value = code_eds
-                $remoteProducts[$product->id] = $product->sku;
+        foreach ($listProductToUpdate as $product) {
+            try {
+                $product = ProductFormatter::transform($product);
+                $result[] = $this->productClient->putProduct($product['id'], $product);
+            } catch (HttpClientException $e) {
+                $errors[] = $e->getMessage() . ' Product sku ' . $product['sku'];
             }
-
-            $this->logger->debug('Recupération des produits de la base distante ...: ',
-                ['count:' => count($remoteProducts), 'liste:' => $remoteProducts]);
-        } catch (HttpClientException $e) {
-            $this->logger->error("", [$e->getMessage()]);
-            print_r($e->getMessage());
         }
 
-        return $remoteProducts;
+        return array($result, $errors);
     }
 
+    /**
+     * @param $listProductToUpdate
+     * @param array $result
+     * @param array $errors
+     * @return array
+     */
+    private function executeInsert($listProductToCreate): array
+    {
+        $result = [];
+        $errors = [];
+
+        foreach ($listProductToCreate as $product) {
+            try {
+                $product = ProductFormatter::transform($product);
+                $result[] = $this->productClient->post($product);
+            } catch (HttpClientException $e) {
+                $errors[] = $e->getMessage() . " Product sku " . $product['sku'];
+            }
+        }
+
+        return array($result, $errors);
+    }
 
     /**
      * @param $name
      * @param $type
      * @param $datas
      */
-    public function createDatasFiles($name, $type, $datas): void
+    private function createDatasFiles($name, $type, $datas): void
     {
-
-        $fp = fopen($name.'_' . time() . '.'. $type, 'w');
+        $fp = fopen($name . '_' . time() . '.' . $type, 'w');
         switch ($type) {
             case 'json' :
                 $options = JSON_PRETTY_PRINT | JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE;
+                if (!json_encode($datas, $options)) {
+                    print_r($datas);
+                    break;
+                }
+
                 fwrite($fp, stripslashes(json_encode($datas, $options)));
                 break;
 
@@ -163,106 +228,32 @@ class ImportService
         }
     }
 
-
-    /**
-     * Build product list to create update or delete
-     * @param array $remoteProductIds
-     * @param string $lastExecutionDate
-     * @return array
-     */
-    private function buildProductList(array $remoteProductIds, $lastExecutionDate)
-    {
-
-        $listProductToCreate = [];
-        $listProductToUpdate = [];
-        $listProductToDelete = array_keys(array_filter($remoteProductIds, function($value) {
-            return empty($value);
-        }));
-
-        $idsProducts = array_filter($remoteProductIds, function($value) {
-            return !empty($value);
-        });
-
-        $listProduct =  $this->productDao->getProductByIds($idsProducts, $lastExecutionDate);
-
-        foreach ($listProduct as $product) {
-
-            $idProduct = array_search($product->id, $remoteProductIds);
-            if(!($idProduct)) {
-                $listProductToCreate[] = ProductFormatter::transform($product);
-            } else {
-                $listProductToUpdate[] = ProductFormatter::transform($product, $idProduct);
-            }
-        }
-
-        return array($listProductToCreate, $listProductToUpdate, $listProductToDelete);
-    }
-
-    /**
-     *
-     * @param $listProductToUpdate
-     * @param array $result
-     * @param array $errors
-     * @return array
-     */
-    public function executeUpdate($listProductToUpdate): array
-    {
-        $result = [];
-        $errors = [];
-
-        foreach ($listProductToUpdate as $product) {
-            try {
-                $result[] = $this->productClient->putProduct($product['id'], $product);
-            } catch (HttpClientException $e) {
-                $errors[] = $e->getMessage() . ' Product sku ' . $product['sku'];
-            }
-        }
-
-        return array($result, $errors);
-    }
-
-
-    /**
-     * @param $listProductToUpdate
-     * @param array $result
-     * @param array $errors
-     * @return array
-     */
-    public function executeInsert($listProductToCreate): array
-    {
-        $result = [];
-        $errors = [];
-
-        foreach ($listProductToCreate as $product) {
-            try {
-
-                $result[] = $this->productClient->post($product);
-            } catch (HttpClientException $e) {
-                $errors[] = $e->getMessage() . " Product sku ". $product['sku'];
-            }
-        }
-
-        return array($result, $errors);
-    }
-
     /**
      * @param $listProductToDelete
      * @return array
      */
-    private function executeDelete($listProductToDelete)
+    private function executeDelete()
     {
         $result = [];
         $errors = [];
+        $remoteProducts = RemoteProductsCache::getRemoteProduct();
+        $localPublishProducts = $this->productDao->getLocalProductsIds();
+
+        $diff = array_diff(array_values($remoteProducts), $localPublishProducts);
+
+        $listProductToDelete = array_map(function($val) use ($remoteProducts) {
+            return array_search($val, $remoteProducts);
+        }, $diff);
 
         foreach ($listProductToDelete as $product) {
             try {
 
-                $result[] = $this->productClient->post($product);
+                $result[] = $this->productClient->delete($product);
             } catch (HttpClientException $e) {
-                $errors[] = $e->getMessage() . " Product sku : " .$product['sku'];
+                $errors[] = $e->getMessage() . " Product Not deleted  : " . $product;
             }
         }
 
-        return array($result, $errors);
+        return array($result, $errors, $listProductToDelete);
     }
 }

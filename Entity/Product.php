@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace  App\Entity;
 
+use App\Cache\RemoteProductsCache;
+use App\Dao\ProductDao;
+
 /**
  * Class Product
  * @package App\Entity
@@ -41,4 +44,18 @@ class Product
     public $diametreMin;
     public $diametreMax;
     public $longueurPlateau;
+    public $collection;
+
+    public function getCollection($collection, $codeEds)
+    {
+        $productDao = new ProductDao();
+        $collections = $productDao->getRelatedCollectionProductIds($collection, $codeEds);
+
+        $remoteProducts = RemoteProductsCache::getRemoteProduct();
+
+        return array_map(function ($val) use ($remoteProducts){
+            return array_search($val, $remoteProducts);
+        }, $collections);
+
+    }
 }
