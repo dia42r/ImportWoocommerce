@@ -32,7 +32,7 @@ class ProductFormatter
                 "sku" => $product->sku,
                 "weight" => $product->weight,
                 "dimensions" => self::getDimensions($product),
-                "upsell_ids" => $product->getCollection($product->collection, $product->sku),
+                "upsell_ids" => $product->collection != '' ? $product->getCollection($product->collection, $product->sku) : [],
                 "categories" => self::getCategorie($product->categorie)
 
                 ,

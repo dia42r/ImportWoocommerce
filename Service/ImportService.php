@@ -59,28 +59,6 @@ class ImportService
 
     public function process()
     {
-        /**
-         * 1. Recuperer la derniere date d'execution
-         * 2. Recuperer tous les produits qui ont été modifier apres cette date
-         * 3. Si aucun produit modifier ==> fin du prcess sinon etape 4.
-         * 4. Pour chaque produit recuperer
-         *      1. Verifier si il est present actuellement sur le site
-         *          Si Oui c'est une mise a jour
-         *          Si Non c'est une nouveau produit a creer
-         *          Bloucler sur la liste des produits et construire un tabelau avec la liste des produits à créer
-         *          et à modifier.
-         *
-         *          productToUpd[]
-         *          productToCreate[]
-         * 5. Poster des produits a creer et a mettre a jour
-         * 6. Produit depublier de la base
-         *      Recupperer tous les produits actuellement sur le site
-         *      Recuprer tous les produits publier de la base
-         *      Les produits a supprimer sont ceux qui ne sont pas dans la liste des produits a publier de la base
-         *      productToDelete[] = array_diff(remoteIds, localIds)
-         * 7. Poster les produits a supprimer
-         *
-         */
 
         $lastExecutionDate = $this->processDao->getLastExecutionDate();
 
