@@ -67,7 +67,6 @@ class ProductFormatter
                     ]
                 ]
             ];
-
         return self::utf8ize($datas);
     }
 

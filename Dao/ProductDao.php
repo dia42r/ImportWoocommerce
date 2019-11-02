@@ -118,7 +118,18 @@ class ProductDao
      */
     public function getRelatedCollectionProductIds($collection, $codeEds)
     {
-        $queryString = sprintf(" SELECT CODEEDS FROM %s WHERE COLLECTION = :collection AND CODEEDS <> :codeEds AND CODEEDS <> '' ", $this->tablename);
+        $queryString = "SELECT 
+                          p.CODEEDS
+                        FROM
+                          produit  p
+                        INNER JOIN
+                          produits_site ps ON p.CODEEDS = ps.REF_PRODUIT
+                        WHERE
+                          COLLECTION = :collection
+                        AND CODEEDS <> :codeEds
+                        AND CODEEDS <> ''
+                        AND ps.CODE_SITE = 1;";
+
 
         $stmt = DbConnexion::prepare($queryString);
 
