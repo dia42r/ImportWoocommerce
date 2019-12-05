@@ -31,7 +31,6 @@ class ProductFormatter
                 "short_description" => utf8_encode(str_replace('"',"",$product->descriptionShort)),
                 "sku" => $product->sku,
                 "weight" => $product->weight,
-                "upsell_ids" => $product->collection != '' ? $product->getCollection($product->collection, $product->sku) : [],
                 "categories" => self::getCategorie($product->categorie)
 
                 ,
@@ -94,7 +93,7 @@ class ProductFormatter
 
         return array_map(function ($image) use ($product_name) {
             return [
-                "src" => str_replace(" ","",$_ENV['IMAGES_LOCATION'].strtolower($image)),
+                "src" => str_replace(" ","",$_ENV['IMAGES_LOCATION'].$image),
                 "name" => $product_name,
                 "alt" => $product_name
             ];
