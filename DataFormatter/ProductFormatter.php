@@ -31,7 +31,6 @@ class ProductFormatter
                 "short_description" => utf8_encode(str_replace('"',"",$product->descriptionShort)),
                 "sku" => $product->sku,
                 "weight" => $product->weight,
-                "dimensions" => self::getDimensions($product),
                 "upsell_ids" => $product->collection != '' ? $product->getCollection($product->collection, $product->sku) : [],
                 "categories" => self::getCategorie($product->categorie)
 
@@ -70,89 +69,18 @@ class ProductFormatter
         return self::utf8ize($datas);
     }
 
-    private static function getDimensions(Product $product)
+
+    public static function transformUpsells(Product $product)
     {
-        $dimensions = [];
-        if (self::valueExist($product->hauteur)) {
-            $dimensions[] = ["hauteur" => $product->hauteur];
-        }
 
-        if (self::valueExist($product->hauteurAssise)) {
-            $dimensions[] = ["hauteur assise" => $product->hauteurAssise];
-        }
+                $datas = [
+                "id" => $product->id,
+                "upsell_ids" => $product->collection != '' ? $product->getCollection($product->collection, $product->sku) : [],
+            ];
 
-        if (self::valueExist($product->hauteurAccoudoire)) {
-            $dimensions[] = ["hauteur accoudoire" => $product->hauteurAccoudoire];
-        }
-
-        if (self::valueExist($product->longueur)) {
-            $dimensions[] = ["longueur" => $product->longueur];
-        }
-
-        if (self::valueExist($product->largeur)) {
-            $dimensions[] = ["largeur" => $product->largeur];
-        }
-
-        if (self::valueExist($product->epaisseur)) {
-            $dimensions[] = ["epaisseur" => $product->epaisseur];
-        }
-
-        if (self::valueExist($product->profondeur)) {
-            $dimensions[] = ["profondeur" => $product->profondeur];
-        }
-
-        if (self::valueExist($product->longueurMin)) {
-            $dimensions[] = ["longueur min" => $product->longueurMin];
-        }
-
-        if (self::valueExist($product->longueurMax)) {
-            $dimensions[] = ["logueur max" => $product->longueurMax];
-        }
-
-        if (self::valueExist($product->largeurMin)) {
-            $dimensions[] = ["largeur min" => $product->largeurMin];
-        }
-
-        if (self::valueExist($product->largeurMax)) {
-            $dimensions[] = ["largeur max" => $product->largeurMax];
-        }
-
-        if (self::valueExist($product->largeurMax)) {
-            $dimensions[] = ["largeur max" => $product->largeurMax];
-        }
-
-        if (self::valueExist($product->carreMin)) {
-            $dimensions[] = ["carre min" => $product->carreMin];
-        }
-
-        if (self::valueExist($product->carreMax)) {
-            $dimensions[] = ["carre max" => $product->carreMax];
-        }
-
-        if (self::valueExist($product->diametre)) {
-            $dimensions[] = ["diametre " => $product->diametre];
-        }
-
-        if (self::valueExist($product->diametreMin)) {
-            $dimensions[] = ["diametre max" => $product->diametreMin];
-        }
-
-        if (self::valueExist($product->diametreMax)) {
-            $dimensions[] = ["diametre max" => $product->diametreMax];
-        }
-
-        if (self::valueExist($product->longueurPlateau)) {
-            $dimensions[] = ["longueur plateau" => $product->longueurPlateau];
-        }
-
-        return $dimensions;
-
+        return self::utf8ize($datas);
     }
 
-    private static function valueExist($value)
-    {
-        return (!empty($value) || $value <> 0);
-    }
 
     private static function getImages($product_images, $product_name)
     {
@@ -176,7 +104,6 @@ class ProductFormatter
 
     private static function getCategorie($id)
     {
-
         try {
             if ($idCatDist = array_search($id, array_flip(AppConfig::CATEGORIES_MAP))) {
 

@@ -98,6 +98,13 @@ class ImportService
         list($resultDelete, $errorsDeleted, $listProductToDeleted) = $this->executeDelete();
         $this->logger->error("Errors  : ", ["Execute Delete "=> $errorsDeleted]);
 
+        // Execute MAj upsells
+
+        $allProducts = array_merge($productToUpd, $newProduct);
+
+        list($resultMajUpsell, $errorsMajUpsell) = $this->executeUpdateUpsell($allProducts);
+
+
 
 
 
@@ -116,9 +123,11 @@ class ImportService
             'created' => array_map($callback, $resultInsert),
             'updated' => array_map($callback, $resultUpdate),
             'deleted' => array_map($callback, $resultDelete),
+            'majUpsell' => array_map($callback, $resultMajUpsell),
             'errorsInsert' => $errorsInsert,
             'errorsUpdate' => $errorsUpdate,
-            'errorsDelete' => $errorsDeleted
+            'errorsDelete' => $errorsDeleted,
+            'errorsMajUpsell' =>$errorsMajUpsell
         ];
 
         print_r($datas);
@@ -147,6 +156,30 @@ class ImportService
         foreach ($listProductToUpdate as $product) {
             try {
                 $product = ProductFormatter::transform($product);
+                $result[] = $this->productClient->putProduct($product['id'], $product);
+            } catch (HttpClientException $e) {
+                $errors[] = $e->getMessage() . ' Product sku ' . $product['sku'];
+            }
+        }
+
+        return array($result, $errors);
+    }
+
+    /**
+     *
+     * @param $listProductToUpdate
+     * @param array $result
+     * @param array $errors
+     * @return array
+     */
+    private function executeUpdateUpsell($listProductToUpdate): array
+    {
+        $result = [];
+        $errors = [];
+
+        foreach ($listProductToUpdate as $product) {
+            try {
+                $product = ProductFormatter::transformUpsells($product);
                 $result[] = $this->productClient->putProduct($product['id'], $product);
             } catch (HttpClientException $e) {
                 $errors[] = $e->getMessage() . ' Product sku ' . $product['sku'];
