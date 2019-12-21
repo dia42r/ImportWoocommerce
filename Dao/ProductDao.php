@@ -140,4 +140,32 @@ class ProductDao
 
         return array_column($stmt->fetchAll(), 'CODEEDS');
     }
+
+
+    /**
+     * Produits supprimer depuis la derniere MAJ
+     * @param string $lastUpdateDate
+     * @return mixed
+     */
+    public function getLastDelProduct(string $lastUpdateDate)
+    {
+        $queryString = " SELECT 
+                            REF_PRODUIT 
+                        FROM
+                            acces_sit.produits_site ps
+                        INNER JOIN acces_sit.produit p ON ps.REF_PRODUIT = p.CODEEDS
+                        WHERE CODE_SITE = 1 
+                        AND WEB = 'NON' 
+                        AND REF_PRODUIT <> ''
+                        AND DATE_MAJ  >= :lastUpdDate ;";
+
+        $stmt = DbConnexion::prepare($queryString);
+
+        $stmt->bindValue(':lastUpdDate', $lastUpdateDate);
+
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(\PDO::FETCH_COLUMN, 0);
+    }
 }

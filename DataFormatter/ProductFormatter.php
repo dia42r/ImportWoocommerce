@@ -176,9 +176,10 @@ class ProductFormatter
             return $image != 0;
         });
 
+
         return array_map(function ($image) use ($product_name) {
             return [
-                "src" => str_replace(" ","",$_ENV['IMAGES_LOCATION'].$image),
+                "src" => str_replace(" ","",$_ENV['REMOTE_IMAGES_LOCATION'].$image),
                 "name" => $product_name,
                 "alt" => $product_name
             ];

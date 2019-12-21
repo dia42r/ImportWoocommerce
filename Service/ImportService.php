@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+ini_set('max_execution_time', '0');
 
 use App\Cache\RemoteProductsCache;
 use App\Client\ProductClient;
@@ -57,6 +58,10 @@ class ImportService
         $this->logger->pushHandler(new StreamHandler(__FILE__ . time() . '.log', Logger::DEBUG));
     }
 
+
+    /**
+     * @return array|string
+     */
     public function process()
     {
 
@@ -95,7 +100,7 @@ class ImportService
         list($resultInsert, $errorsInsert) = $this->executeInsert($newProduct);
         $this->logger->error("Errors : ", ["Execute create " => $errorsInsert]);
 
-        list($resultDelete, $errorsDeleted, $listProductToDeleted) = $this->executeDelete();
+        list($resultDelete, $errorsDeleted, $listProductToDeleted) = $this->executeDelete($lastExecutionDate);
         $this->logger->error("Errors  : ", ["Execute Delete "=> $errorsDeleted]);
 
         // Execute MAj upsells
@@ -103,10 +108,6 @@ class ImportService
         $allProducts = array_merge($productToUpd, $newProduct);
 
         list($resultMajUpsell, $errorsMajUpsell) = $this->executeUpdateUpsell($allProducts);
-
-
-
-
 
         $datas = [
             'create' => $newProduct,
@@ -130,15 +131,12 @@ class ImportService
             'errorsMajUpsell' =>$errorsMajUpsell
         ];
 
-        print_r($datas);
-        print_r($report);
-
-
         $this->createDatasFiles('products', 'json', $datas);
         $this->createDatasFiles('report', 'json', $report);
 
         $this->processDao->save();
 
+        return $report;
     }
 
     /**
@@ -240,21 +238,15 @@ class ImportService
     }
 
     /**
-     * @param $listProductToDelete
+     * @param string $lastUpdateDate
      * @return array
      */
-    private function executeDelete()
+    private function executeDelete(string $lastUpdateDate)
     {
         $result = [];
         $errors = [];
-        $remoteProducts = RemoteProductsCache::getRemoteProduct();
-        $localPublishProducts = $this->productDao->getLocalProductsIds();
 
-        $diff = array_diff(array_values($remoteProducts), $localPublishProducts);
-
-        $listProductToDelete = array_map(function($val) use ($remoteProducts) {
-            return array_search($val, $remoteProducts);
-        }, $diff);
+        $listProductToDelete = $this->productDao->getLastDelProduct($lastUpdateDate);
 
         foreach ($listProductToDelete as $product) {
             try {
