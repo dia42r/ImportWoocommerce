@@ -5,13 +5,11 @@ namespace App\Service;
 
 ini_set('max_execution_time', '0');
 
-use App\Cache\RemoteProductsCache;
 use App\Client\ProductClient;
 use App\Dao\ProcessDao;
 use App\Dao\ProductDao;
 use App\DataFormatter\ProductFormatter;
 use Automattic\WooCommerce\HttpClient\HttpClientException;
-use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
 
 /**
@@ -36,6 +34,11 @@ class ImportService
     private $processDao;
 
     /**
+     * @var FTPService
+     */
+    private $ftpService;
+
+    /**
      * @var Logger
      */
     private $logger;
@@ -47,15 +50,22 @@ class ImportService
      * @param ProcessDao $processDao
      * @throws \Exception
      */
-    public function __construct(ProductClient $productClient, ProductDao $productDao, ProcessDao $processDao)
-    {
+    public function __construct(
+        ProductClient $productClient,
+        ProductDao $productDao,
+        ProcessDao $processDao,
+        FTPService $ftpService,
+        Logger $logger
+    ) {
         $this->productClient = $productClient;
         $this->productDao = $productDao;
         $this->processDao = $processDao;
-
-        $this->logger = new Logger(__FILE__);
-
-        $this->logger->pushHandler(new StreamHandler(__FILE__ . time() . '.log', Logger::DEBUG));
+        $this->ftpService = $ftpService;
+        $this->logger = $logger;
+//
+//        $this->logger = new Logger(__FILE__);
+//
+//        $this->logger->pushHandler(new StreamHandler(__FILE__ . time() . '.log', Logger::DEBUG));
     }
 
 
@@ -77,7 +87,12 @@ class ImportService
         $newProduct = [];
         $productToUpd = [];
 
+        $imagesToCpy = [];
         foreach ($modifiedProducts as $product) {
+
+            $images = $product->images;
+            $images = $this->extractImagesNames($images);
+            $imagesToCpy = array_merge($imagesToCpy, $images);
 
             $params = [
                 'sku' => $product->id
@@ -94,20 +109,30 @@ class ImportService
             }
         }
 
-        list($resultUpdate, $errorsUpdate) = $this->executeUpdate($productToUpd);
-        $this->logger->error("Errors : ", ["Execute Update " => $errorsUpdate]);
+        if (!empty($imagesToCpy)) {
+            $this->ftpService->sendFiles($imagesToCpy, $_ENV['LOCAL_IMAGES_DIR'], $_ENV['REMOTE_IMAGES_DIR']);
+        }
 
-        list($resultInsert, $errorsInsert) = $this->executeInsert($newProduct);
-        $this->logger->error("Errors : ", ["Execute create " => $errorsInsert]);
+        if (!empty($productToUpd)) {
+            list($resultUpdate, $errorsUpdate) = $this->executeUpdate($productToUpd);
+            $this->logger->error("Errors : ", ["Execute Update " => $errorsUpdate]);
+        }
+
+        if (!empty($newProduct)){
+            list($resultInsert, $errorsInsert) = $this->executeInsert($newProduct);
+            $this->logger->error("Errors : ", ["Execute create " => $errorsInsert]);
+        }
+
 
         list($resultDelete, $errorsDeleted, $listProductToDeleted) = $this->executeDelete($lastExecutionDate);
-        $this->logger->error("Errors  : ", ["Execute Delete "=> $errorsDeleted]);
+        $this->logger->error("Errors  : ", ["Execute Delete " => $errorsDeleted]);
 
         // Execute MAj upsells
-
         $allProducts = array_merge($productToUpd, $newProduct);
 
-        list($resultMajUpsell, $errorsMajUpsell) = $this->executeUpdateUpsell($allProducts);
+        if (!empty($allProducts)) {
+            list($resultMajUpsell, $errorsMajUpsell) = $this->executeUpdateUpsell($allProducts);
+        }
 
         $datas = [
             'create' => $newProduct,
@@ -117,18 +142,17 @@ class ImportService
 
         $callback = function ($res) {
             return $res->sku;
-
         };
 
         $report = [
-            'created' => array_map($callback, $resultInsert),
-            'updated' => array_map($callback, $resultUpdate),
-            'deleted' => array_map($callback, $resultDelete),
-            'majUpsell' => array_map($callback, $resultMajUpsell),
-            'errorsInsert' => $errorsInsert,
-            'errorsUpdate' => $errorsUpdate,
+            'created' => array_map($callback, isset($resultInsert) ? $resultInsert : []),
+            'updated' => array_map($callback, isset($resultUpdate) ? $resultUpdate : []),
+            'deleted' => array_map($callback, isset($resultDelete) ? $resultDelete : []),
+            'majUpsell' => array_map($callback, isset($resultMajUpsell)? $resultMajUpsell : []),
+            'errorsInsert' => isset($errorsInsert) ? $errorsInsert : [],
+            'errorsUpdate' => isset($errorsUpdate) ? $errorsUpdate: [],
             'errorsDelete' => $errorsDeleted,
-            'errorsMajUpsell' =>$errorsMajUpsell
+            'errorsMajUpsell' => $errorsMajUpsell
         ];
 
         $this->createDatasFiles('products', 'json', $datas);
@@ -140,10 +164,21 @@ class ImportService
     }
 
     /**
-     *
+     * @param $images
+     * @return array
+     */
+    private function extractImagesNames($images): array
+    {
+        $images = explode(",", $images);
+
+        return array_filter($images, function ($image) {
+            return $image != 0;
+        });
+    }
+
+
+    /**
      * @param $listProductToUpdate
-     * @param array $result
-     * @param array $errors
      * @return array
      */
     private function executeUpdate($listProductToUpdate): array
@@ -161,6 +196,51 @@ class ImportService
         }
 
         return array($result, $errors);
+    }
+
+    /**
+     * @param $listProductToCreate
+     * @return array
+     */
+    private function executeInsert($listProductToCreate): array
+    {
+        $result = [];
+        $errors = [];
+
+        foreach ($listProductToCreate as $product) {
+            try {
+                $product = ProductFormatter::transform($product);
+                $result[] = $this->productClient->post($product);
+            } catch (HttpClientException $e) {
+                $errors[] = $e->getMessage() . " Product sku " . $product['sku'];
+            }
+        }
+
+        return array($result, $errors);
+    }
+
+    /**
+     * @param string $lastUpdateDate
+     * @return array
+     */
+    private function executeDelete(string $lastUpdateDate)
+    {
+        $result = [];
+        $errors = [];
+
+        $listIdProductToDelete = $this->productDao->getLastDelProductIds($lastUpdateDate);
+
+        foreach ($listIdProductToDelete as $idProduct) {
+            try {
+
+                $remoteProductId = $this->productClient->getRemoteIdByCodeEds($idProduct);
+                $result[] = $this->productClient->delete($remoteProductId);
+            } catch (HttpClientException $e) {
+                $errors[] = $e->getMessage() . " Product Not deleted  : " . $idProduct;
+            }
+        }
+
+        return array($result, $errors, $listIdProductToDelete);
     }
 
     /**
@@ -188,29 +268,6 @@ class ImportService
     }
 
     /**
-     * @param $listProductToUpdate
-     * @param array $result
-     * @param array $errors
-     * @return array
-     */
-    private function executeInsert($listProductToCreate): array
-    {
-        $result = [];
-        $errors = [];
-
-        foreach ($listProductToCreate as $product) {
-            try {
-                $product = ProductFormatter::transform($product);
-                $result[] = $this->productClient->post($product);
-            } catch (HttpClientException $e) {
-                $errors[] = $e->getMessage() . " Product sku " . $product['sku'];
-            }
-        }
-
-        return array($result, $errors);
-    }
-
-    /**
      * @param $name
      * @param $type
      * @param $datas
@@ -222,7 +279,6 @@ class ImportService
             case 'json' :
                 $options = JSON_PRETTY_PRINT | JSON_FORCE_OBJECT | JSON_UNESCAPED_UNICODE;
                 if (!json_encode($datas, $options)) {
-                    print_r($datas);
                     break;
                 }
 
@@ -235,28 +291,5 @@ class ImportService
             default :
                 fclose($fp);
         }
-    }
-
-    /**
-     * @param string $lastUpdateDate
-     * @return array
-     */
-    private function executeDelete(string $lastUpdateDate)
-    {
-        $result = [];
-        $errors = [];
-
-        $listProductToDelete = $this->productDao->getLastDelProduct($lastUpdateDate);
-
-        foreach ($listProductToDelete as $product) {
-            try {
-
-                $result[] = $this->productClient->delete($product);
-            } catch (HttpClientException $e) {
-                $errors[] = $e->getMessage() . " Product Not deleted  : " . $product;
-            }
-        }
-
-        return array($result, $errors, $listProductToDelete);
     }
 }

@@ -75,7 +75,8 @@ class ProductFormatter
 
                 $datas = [
                 "id" => $product->id,
-                "upsell_ids" => $product->collection != '' ? $product->getCollection($product->collection, $product->sku) : [],
+                "sku" => $product->sku,
+                "upsell_ids" => $product->collection != '' ? $product::getCollection($product->collection, $product->sku) : []
             ];
 
         return self::utf8ize($datas);

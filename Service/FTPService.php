@@ -9,8 +9,23 @@
 namespace App\Service;
 
 
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+
 class FTPService
 {
+
+    /**
+     * @var Logger
+     */
+    private $logger;
+
+    public function __construct()
+    {
+        $this->logger = new Logger(__FILE__);
+        $this->logger->pushHandler(new StreamHandler(__FILE__ . time() . '.log', Logger::DEBUG));
+    }
+
     public function getConnection()
     {
         $conn_id = ftp_connect($_ENV['FTP_HOST']);
@@ -20,7 +35,7 @@ class FTPService
         if (!$login_result) {
             throw new \Exception('Impossible d\'etablir la connexion');
         }
-        ftp_pasv($conn_id, true);
+        ftp_pasv($conn_id, true) or die("Unable switch to passive mode");;
 
         return $conn_id;
     }
@@ -31,7 +46,7 @@ class FTPService
         $result = ftp_close($conn_id);
 
         if (!$result) {
-            throw new \Exception('Ompossible de fermer la connexion !');
+            throw new \Exception('Impossible de fermer la connexion !');
         }
     }
 
@@ -41,13 +56,43 @@ class FTPService
         return ftp_size($conn_id, $file_name) != -1;
     }
 
+    /**
+     * @param $conn_id
+     * @param $remote_file
+     * @param $local_file
+     */
     function copyFile($conn_id, $remote_file, $local_file)
     {
 
-        if (ftp_put($conn_id, $remote_file, $local_file, FTP_BINARY)) {
-            echo "Le fichier $local_file a été chargé avec succès\n";
-        } else {
-            echo "Il y a eu un problème lors du chargement du fichier $local_file \n";
+        return ftp_put($conn_id, $remote_file, $local_file, FTP_BINARY);
+    }
+
+
+    /**
+     * Envoie des images sur le serveur FTP
+     * @param array $imagesToCpy
+     */
+    public function sendFiles(array $imagesToCpy, $source_dir, $dest_dir)
+    {
+        try {
+            $ftp_cnx = $this->getConnection();
+        } catch (\Exception $e) {
+            $this->logger->error(" Erreur ",[" Connection FTP  " => $e->getMessage()]);
+            exit("Impossible d'etablir la connection FTP");
+        }
+
+        foreach ($imagesToCpy as $image) {
+
+            $image = str_replace(" ", "", $image);
+            $remoteFile = $dest_dir.$image;
+            $localFile = $source_dir.$image;
+
+            if (!$this->fileExist($remoteFile, $ftp_cnx)) {
+
+                if (!$this->copyFile($ftp_cnx, $remoteFile, $localFile)) {
+                    $this->logger->error(" copie images",[" copie images" => "Erreur lors de la copie de l'image :  {$image} "]);
+                };
+            }
         }
     }
 }

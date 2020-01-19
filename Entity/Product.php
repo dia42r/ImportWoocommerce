@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace  App\Entity;
 
 use App\Cache\RemoteProductsCache;
+use App\Client\ProductClient;
 use App\Dao\ProductDao;
 
 /**
@@ -46,16 +47,16 @@ class Product
     public $longueurPlateau;
     public $collection;
 
-    public function getCollection($collection, $codeEds)
+    public static function getCollection($collection, $codeEds)
     {
         $productDao = new ProductDao();
-        $collections = $productDao->getRelatedCollectionProductIds($collection, $codeEds);
+        $productClient = new ProductClient();
+        $products = $productDao->getRelatedCollectionProductIds($collection, $codeEds);
 
-        $remoteProducts = RemoteProductsCache::getRemoteProduct();
+        $collections = array_map(function ($val) use ($productClient){
+            return $productClient->getRemoteIdByCodeEds($val);
+        }, $products);
 
-        return array_map(function ($val) use ($remoteProducts){
-            return array_search($val, $remoteProducts);
-        }, $collections);
-
+        return $collections;
     }
 }

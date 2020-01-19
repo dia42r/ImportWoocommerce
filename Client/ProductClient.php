@@ -72,6 +72,17 @@ class ProductClient
     {
         return $this->client->get($this->endpoints, $params);
     }
+    /**
+     * @param int $id
+     * @return array
+     */
+    public function getRemoteIdByCodeEds(string $codeEds)
+    {
+        $params = ['sku' => $codeEds];
+        $product = $this->client->get($this->endpoints, $params);
+
+         return !empty($product) ?  $product[0]->id :  null;
+    }
 
     /**
      * @param array $datas

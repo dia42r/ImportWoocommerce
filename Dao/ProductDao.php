@@ -96,7 +96,7 @@ class ProductDao
                             produit p
                                 INNER JOIN
                             produits_site ps ON p.CODEEDS = ps.REF_PRODUIT 
-                         WHERE DATE_MAJ  >= :lastUpdDate AND ps.CODE_SITE = 1 ";
+                         WHERE DATE_MAJ  >= :lastUpdDate AND ps.CODE_SITE = 1 AND WEB = 'OUI'";
 
         $stmt= DbConnexion::prepare($queryString);
         $stmt->bindValue(':lastUpdDate', $lastUpdateDate);
@@ -147,7 +147,7 @@ class ProductDao
      * @param string $lastUpdateDate
      * @return mixed
      */
-    public function getLastDelProduct(string $lastUpdateDate)
+    public function getLastDelProductIds(string $lastUpdateDate)
     {
         $queryString = " SELECT 
                             REF_PRODUIT 
