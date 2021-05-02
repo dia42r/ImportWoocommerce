@@ -3,6 +3,10 @@ require __DIR__ . '/vendor/autoload.php';
 
 use Symfony\Component\Dotenv\Dotenv;
 
+ if (!extension_loaded('ftp')) {
+            throw new \Exception('FTP extension is not loaded!');
+        }
+
 $dotEnv = new Dotenv();
 $dotEnv->load(__DIR__ . '/Config/.env');
 

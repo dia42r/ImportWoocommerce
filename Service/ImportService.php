@@ -257,10 +257,10 @@ class ImportService
 
         foreach ($listProductToUpdate as $product) {
             try {
-                $product = ProductFormatter::transformUpsells($product);
-                $result[] = $this->productClient->putProduct($product['id'], $product);
+                $productTransformed = ProductFormatter::transformUpsells($product);
+                $result[] = $this->productClient->putProduct($productTransformed['id'], $productTransformed);
             } catch (HttpClientException $e) {
-                $errors[] = $e->getMessage() . ' Product sku ' . $product['sku'];
+                $errors[] = $e->getMessage() . ' Product sku ' . $productTransformed['sku'];
             }
         }
 

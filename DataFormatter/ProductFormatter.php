@@ -21,51 +21,52 @@ class ProductFormatter
     public static function transform(Product $product)
     {
 
-                $datas = [
-                "id" => $product->id,
-                "title" => utf8_encode($product->title),
-                "name" => utf8_encode($product->name),
-                "type" => $product->type,
-                "regular_price" => $product->regularPrice,
-                "description" => utf8_encode(str_replace('"', "", $product->description)),
-                "short_description" => utf8_encode(str_replace('"',"",$product->descriptionShort)),
-                "sku" => $product->sku,
-                "weight" => $product->weight,
-                "dimensions" => self::getDimensions($product),
-                "categories" => self::getCategorie($product->categorie)
+        $datas = [
+            "id" => $product->id,
+            "title" => utf8_encode($product->title),
+            "name" => utf8_encode($product->name),
+            "type" => $product->type,
+            "regular_price" => $product->regularPrice,
+            // "description" => utf8_encode(str_replace('"', "", $product->description)),
+            "description" => self::formatDimensions(self::getDimensions($product)),
+            "short_description" => utf8_encode(str_replace('"',"",$product->description)),
+            "sku" => $product->sku,
+            "weight" => $product->weight,
+            "dimensions" => self::getDimensions($product),
+            "categories" => self::getCategorie($product->categorie)
 
-                ,
-                "tags" => [
-                    [],
-                    []
+            ,
+            "tags" => [
+                [],
+                []
+            ],
+            "images" =>
+                self::getImages($product->images, $product->name)
+
+            ,
+            "attributes" => [
+                [
+                    "id" => 2,
+                    "options" => [
+
+                        self::getDesign($product->design)
+                    ]
                 ],
-                "images" =>
-                    self::getImages($product->images, $product->name)
-
-                ,
-                "attributes" => [
-                    [
-                        "id" => 2,
-                        "options" => [
-
-                            self::getDesign($product->design)
-                        ]
-                    ],
-                    [
-                        "id" => 3,
-                        "options" => [
-                            "Collection X"
-                        ]
-                    ],
-                    [
-                        "id" => 4,
-                        "options" => [
-                            "Extérieur",
-                            "Intérieur"
-                        ]
+                [
+                    "id" => 3,
+                    "options" => [
+                        "Collection X"
+                    ]
+                ],
+                [
+                    "id" => 4,
+                    "options" => [
+                        "Extérieur",
+                        "Intérieur"
                     ]
                 ]
-            ];
+            ]
+        ];
         return self::utf8ize($datas);
     }
 
@@ -73,13 +74,26 @@ class ProductFormatter
     public static function transformUpsells(Product $product)
     {
 
-                $datas = [
-                "id" => $product->id,
-                "sku" => $product->sku,
-                "upsell_ids" => $product->collection != '' ? $product::getCollection($product->collection, $product->sku) : []
-            ];
+        $datas = [
+            "id" => $product->id,
+            "sku" => $product->sku,
+            "upsell_ids" => $product->collection != '' ? $product::getCollection($product->collection, $product->sku) : []
+        ];
 
         return self::utf8ize($datas);
+    }
+
+
+    private static function formatDimensions(array $dimensions) {
+        $return = "<h2> Dimensions : </h2><br/><table><tbody>";
+
+        foreach ($dimensions as $dimension) {
+            foreach ($dimension as $key => $value) {
+                $return .= "<tr><td>$key</td><td>$value</td></tr>";
+            }
+        }
+        $return .="</tbody></table>";
+        return $return;
     }
 
     private static function getDimensions(Product $product)

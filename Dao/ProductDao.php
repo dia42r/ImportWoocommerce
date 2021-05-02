@@ -56,12 +56,12 @@ class ProductDao
 
         $queryString = " SELECT 
                             p.CODEEDS id,
-                            LIBELLE_PRODUIT title,
-                            LIBELLE_PRODUIT name,
+                            p.libelle_web title,
+                            p.libelle_web name,
                             'simple' type,
                             0.0 regularPrice,
-                            DESC_COMPLETE description,
-                            DESC_PRODUIT descriptionShort,
+                            DESCRIPTION description,
+                            DESCRIPTION descriptionShort,
                             p.CODEEDS sku,
                             p.POIDS weight,
                             p.CODESTYLE design,
