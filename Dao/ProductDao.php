@@ -168,4 +168,32 @@ class ProductDao
 
         return $stmt->fetchAll(\PDO::FETCH_COLUMN, 0);
     }
+
+
+    /**
+     * Tous les produits de la base woocommerce.
+     *
+     * @return mixed
+     */
+    public function getRemoteProduct()
+    {
+
+        $link = DbConnexionRemote::getConnectionRDB();
+
+        die($link);
+        $query = "SELECT p.ID,
+                    IF (meta.meta_key = '_sku', meta.meta_value, null) 'SKU'
+                    FROM rdkHN2_posts AS p
+                    LEFT JOIN rdkHN2_postmeta AS meta ON p.ID = meta.post_ID
+                    WHERE (p.post_type = 'product' OR p.post_type = 'product_variation')
+                    AND meta.meta_key IN ('_sku', '_price', '_weight')
+                    GROUP BY p.ID  
+                    ORDER BY `SKU` ASC LIMIT 10";
+
+        $stmt = DbConnexionRemote::prepare($query);
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(\PDO::FETCH_COLUMN, 0);
+    }
 }

@@ -1,4 +1,7 @@
 <?php
+
+ini_set('display_errors', '1');
+
 require __DIR__ . '/vendor/autoload.php';
 
 use Symfony\Component\Dotenv\Dotenv;
@@ -12,6 +15,12 @@ $dotEnv->load(__DIR__ . '/Config/.env');
 
 $processDao = new \App\Dao\ProcessDao();
 $lastUpdateDate = $processDao->getLastExecutionDate();
+
+$productDao = new \App\Dao\ProductDao();
+$p = $productDao->getRemoteProduct();
+
+print_r($p);
+die('');
 
 ?>
 <!doctype html>

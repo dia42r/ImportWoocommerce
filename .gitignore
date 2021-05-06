@@ -7,3 +7,4 @@
 /App/Dao/*.log
 /Service/*.log
 /Config/.env
+/*.log
